@@ -1,0 +1,191 @@
+# This piece of code is designed to attempt opening a VNC connection and taking a snapshot of each instance.
+
+import sys
+import os
+import shutil
+import subprocess
+import time
+
+
+# =================================================================================================================
+# Constants
+# =================================================================================================================
+
+scanfile = os.sep + os.path.join('home', 'pi', 'Pen', 'Scripts', 'Masscan', 'Results', 'Scan_Webpage_Out.txt')
+debug = 1
+firstoct = '213.'
+web = 1
+
+# =================================================================================================================
+# Add some colour to the output
+# =================================================================================================================
+
+
+def printcolour(stringput, colour):
+    if colour == 'gr':
+        print("\033[1;30m%s\033[1;m" %stringput)
+    if colour == 'r':
+        print("\033[1;31m%s\033[1;m" %stringput)
+    if colour == 'g':
+        print("\033[1;32m%s\033[1;m" %stringput)
+    if colour == 'y':
+        print("\033[1;33m%s\033[1;m" %stringput)
+    if colour == 'b':
+        print("\033[1;34m%s\033[1;m" %stringput)
+    if colour == 'm':
+        print("\033[1;35m%s\033[1;m" %stringput)
+    if colour == 'cy':
+        print("\033[1;36m%s\033[1;m" %stringput)
+    if colour == 'w':
+        print("\033[1;37m%s\033[1;m" %stringput)
+    if colour == 'cr':
+        print("\033[1;38m%s\033[1;m" %stringput)
+
+
+def GetIP(row):
+
+    first = 0
+    second = 0
+    length = 1
+
+    first = row.find(firstoct)
+    second = row.find(' ', row.find(firstoct))
+    length = second - first
+    # printcolour(first & " " & second, 'r')
+    return row[first:first + length]
+
+# def interact(path, thing):
+#    path = os.sep + os.path.join('tmux')
+#    tmuxexecthing = ("new-session -d -s newhost")
+
+#   if debug == 1:
+#        printcolour(tmuxexecpath + tmuxexecthing, 'cy')
+#    starttmux = subprocess.check_output([tmuxexecpath, tmuxexecthing], shell=True)
+
+
+def vnc():
+
+    print(scanfile)
+
+    if debug == 1:
+        printcolour(scanfile, 'cy')
+
+    file = open(scanfile, 'r')
+
+    ip = GetIP(file.readline())
+    ip = GetIP(file.readline())
+
+    while ip.find(firstoct) != -1:
+
+        printcolour(ip, 'cy')
+
+        # Start TMUX Session
+        # --------------------------------------------------------------------------------------------------------------
+
+        tmuxexecpath = os.path.join('tmux ')
+        tmuxexecthing = ("new-session -d -s newhost")
+
+        starttmux = subprocess.check_output([tmuxexecpath + tmuxexecthing], shell=True)
+
+
+        if debug == 1:
+            printcolour(tmuxexecpath + tmuxexecthing, 'cy')
+
+        # Start noVNC in TMUX session
+        # --------------------------------------------------------------------------------------------------------------
+
+        vncexecpath = os.sep + os.path.join('home', 'pi', 'Pen', 'Scripts', 'NoVNC', 'noVNC', 'utils', 'launch.sh')
+        vncexecthing = ('--vnc ' + ip + ':5900')
+
+        sessexecpath = os.path.join('tmux ')
+    #    sessexecthing = ("new-window -t newhost -n " + ip + " " + vncexecpath + " " + vncexecthing)
+        sessexecthing = ('new-window -t newhost -n newhost "' + vncexecpath + ' ' + vncexecthing + '"')
+
+        if debug == 1:
+            printcolour(sessexecpath + sessexecthing, 'cy')
+
+        startsess = subprocess.check_output([sessexecpath + sessexecthing], shell=True)
+
+        # Give noVNC a gap to start up and settle
+        # --------------------------------------------------------------------------------------------------------------
+
+        time.sleep(6)
+
+        # Take a snappy
+        # --------------------------------------------------------------------------------------------------------------
+
+        snapexecpath = ('xvfb-run --server-args="-screen 0, 1280x1200x24" cutycapt --url="http://printserver:6080/vnc_auto.html?host=PrintServer&port=6080" ')
+        snapexecthing = ('--javascript=on --out=/home/pi/Pen/VNCScreens/' + ip + '.png --delay=3000')
+
+    #$snapexecpath = 'xvfb-run '
+    #    snapexecthing = 'wkhtmltopdf http://printserver:6080/vnc_auto.html /home/pi/Pen/VNCScreens/' + ip + '.pdf'
+
+        if debug == 1:
+            printcolour(snapexecpath + snapexecthing, 'cy')
+
+        takesnap = subprocess.check_output([snapexecpath + snapexecthing], shell=True)
+
+        #time.sleep(1)
+
+        # Kill TMUX Session
+        # --------------------------------------------------------------------------------------------------------------
+
+        tmuxexecpath = os.path.join('tmux ')
+        tmuxexecthing = ('kill-session -t newhost')
+
+        if debug == 1:
+            printcolour(tmuxexecpath + tmuxexecthing, 'cy')
+
+        starttmux = subprocess.check_output([tmuxexecpath + tmuxexecthing], shell=True)
+
+        ip = GetIP(file.readline())
+
+
+    printcolour("No IP Found in the line, turning off..", 'r')
+
+    file.close()
+
+
+def webber():
+
+    print(scanfile)
+
+    if debug == 1:
+        printcolour(scanfile, 'cy')
+
+    file = open(scanfile, 'r')
+
+    ip = GetIP(file.readline())
+    ip = GetIP(file.readline())
+
+    while ip.find(firstoct) != -1:
+
+        printcolour(ip, 'cy')
+
+        snapexecpath = ('xvfb-run --auto-servernum --server-num=1 --server-args="-screen 0, 1280x1200x24" cutycapt --url="http://"' + ip + ' ')
+        snapexecthing = ('--javascript=on --out=/home/pi/Pen/VNCScreens/' + ip + '.png --delay=3000')
+
+        if debug == 1:
+            printcolour(snapexecpath + snapexecthing, 'cy')
+
+        takesnap = subprocess.check_output([snapexecpath + snapexecthing], shell=True)
+
+        time.sleep(1)
+        ip = GetIP(file.readline())
+
+
+    printcolour("No IP Found in the line, turning off..", 'r')
+
+    file.close()
+
+# ----------------------------------------------------------------------------------------------------------------------
+# Main
+# ----------------------------------------------------------------------------------------------------------------------
+
+if web == 0:
+    vnc()
+
+if web == 1:
+    webber()
+
+exit()
