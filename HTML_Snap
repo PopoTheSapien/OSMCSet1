@@ -5,16 +5,17 @@ import os
 import shutil
 import subprocess
 import time
+from subprocess import PIPE
 
 
 # =================================================================================================================
 # Constants
 # =================================================================================================================
 
-scanfile = os.sep + os.path.join('home', 'pi', 'Pen', 'Scripts', 'Masscan', 'Results', 'Scan_Webpage_Out.txt')
-debug = 1
-firstoct = '213.'
-web = 1
+#scanfile = os.sep + os.path.join('home', 'pi', 'Pen', 'Scripts', 'Masscan', 'Results', 'Scan_ISP_VNC.txt')
+debug = 0
+port = '5900'
+web = 0
 
 # =================================================================================================================
 # Add some colour to the output
@@ -44,28 +45,18 @@ def printcolour(stringput, colour):
 
 def GetIP(row):
 
-    first = 0
-    second = 0
-    length = 1
-
-    first = row.find(firstoct)
-    second = row.find(' ', row.find(firstoct))
+    first = row.find(port) + port.__len__() + 1
+    second = row.find(' ', row.find(port) + port.__len__() + 1)
     length = second - first
-    # printcolour(first & " " & second, 'r')
+    # printcolour(first.__str__() + ' ' + second.__str__(), 'b')
     return row[first:first + length]
 
-# def interact(path, thing):
-#    path = os.sep + os.path.join('tmux')
-#    tmuxexecthing = ("new-session -d -s newhost")
 
-#   if debug == 1:
-#        printcolour(tmuxexecpath + tmuxexecthing, 'cy')
-#    starttmux = subprocess.check_output([tmuxexecpath, tmuxexecthing], shell=True)
-
-
+# ======================================================================================================================
 def vnc():
 
-    print(scanfile)
+    out = ''
+    err = ''
 
     if debug == 1:
         printcolour(scanfile, 'cy')
@@ -75,90 +66,65 @@ def vnc():
     ip = GetIP(file.readline())
     ip = GetIP(file.readline())
 
-    while ip.find(firstoct) != -1:
+    while ip != '':
 
         printcolour(ip, 'cy')
-
-        # Start TMUX Session
-        # --------------------------------------------------------------------------------------------------------------
-
-        tmuxexecpath = os.path.join('tmux ')
-        tmuxexecthing = ("new-session -d -s newhost")
-
-        starttmux = subprocess.check_output([tmuxexecpath + tmuxexecthing], shell=True)
-
-
-        if debug == 1:
-            printcolour(tmuxexecpath + tmuxexecthing, 'cy')
-
-        # Start noVNC in TMUX session
-        # --------------------------------------------------------------------------------------------------------------
-
-        vncexecpath = os.sep + os.path.join('home', 'pi', 'Pen', 'Scripts', 'NoVNC', 'noVNC', 'utils', 'launch.sh')
-        vncexecthing = ('--vnc ' + ip + ':5900')
-
-        sessexecpath = os.path.join('tmux ')
-    #    sessexecthing = ("new-window -t newhost -n " + ip + " " + vncexecpath + " " + vncexecthing)
-        sessexecthing = ('new-window -t newhost -n newhost "' + vncexecpath + ' ' + vncexecthing + '"')
-
-        if debug == 1:
-            printcolour(sessexecpath + sessexecthing, 'cy')
-
-        startsess = subprocess.check_output([sessexecpath + sessexecthing], shell=True)
-
-        # Give noVNC a gap to start up and settle
-        # --------------------------------------------------------------------------------------------------------------
-
-        time.sleep(6)
+        revisit = 0
 
         # Take a snappy
         # --------------------------------------------------------------------------------------------------------------
 
-        snapexecpath = ('xvfb-run xvfb-run --auto-servernum --server-num=1 --server-args="-screen 0, 1280x1200x24" cutycapt --url="http://printserver:6080/vnc_auto.html?host=PrintServer&port=6080" ')
-        snapexecthing = ('--javascript=on --out=/home/pi/Pen/VNCScreens/' + ip + '.png --delay=3000')
-
-    #$snapexecpath = 'xvfb-run '
-    #    snapexecthing = 'wkhtmltopdf http://printserver:6080/vnc_auto.html /home/pi/Pen/VNCScreens/' + ip + '.pdf'
+        snapexecpath = 'timeout 3 vncsnapshot ' + ip + ' /home/pi/Pen/VNCScreens/' + ip + '.png'
 
         if debug == 1:
-            printcolour(snapexecpath + snapexecthing, 'cy')
+            printcolour(snapexecpath, 'cy')
 
-        takesnap = subprocess.check_output([snapexecpath + snapexecthing], shell=True)
+        try:
+            takesnap = subprocess.Popen([snapexecpath], shell=True, stderr=PIPE, stdout=PIPE, bufsize=1)
+        except:
+            printcolour('Done Reading: ' + ip, 'r')
 
-        #time.sleep(1)
+        out = ''
+        err = ''
+        (out, err) = takesnap.communicate()
+        if err != '':
+            printcolour(err, 'r')
+        if out != '':
+            printcolour(out, 'y')
 
-        # Kill TMUX Session
-        # --------------------------------------------------------------------------------------------------------------
+        if err.find('No authentication needed') != -1:
+            printcolour('Hmmmmm....', 'y')
+            revisit = 1
 
-        tmuxexecpath = os.path.join('tmux ')
-        tmuxexecthing = ('kill-session -t newhost')
+        takesnap.wait()
 
-        if debug == 1:
-            printcolour(tmuxexecpath + tmuxexecthing, 'cy')
+        #revisit = 0
+        if revisit == 1:
+            printcolour('Taking closer look....', 'y')
+            snapexecpath = 'timeout 120 vncsnapshot -debug ' + ip + ' /home/pi/Pen/VNCScreens/' + ip + '.png'
+            try:
+                takesnap = subprocess.Popen([snapexecpath], shell=True, stderr=PIPE, stdout=PIPE, bufsize=1)
+            except:
+                printcolour('Error Occurred', 'r')
 
-        starttmux = subprocess.check_output([tmuxexecpath + tmuxexecthing], shell=True)
+        takesnap.wait()
 
         ip = GetIP(file.readline())
-
 
     printcolour("No IP Found in the line, turning off..", 'r')
 
     file.close()
 
-
+# ======================================================================================================================
 def webber():
 
-    print(scanfile)
-
-    if debug == 1:
-        printcolour(scanfile, 'cy')
 
     file = open(scanfile, 'r')
 
     ip = GetIP(file.readline())
     ip = GetIP(file.readline())
 
-    while ip.find(firstoct) != -1:
+    while ip.find(port) != -1:
 
         printcolour(ip, 'cy')
 
@@ -181,6 +147,21 @@ def webber():
 # ----------------------------------------------------------------------------------------------------------------------
 # Main
 # ----------------------------------------------------------------------------------------------------------------------
+
+for arg in sys.argv:
+
+    if arg == 'web':
+        web = 1
+    else:
+        web = 0
+    if arg.find('/') != -1:
+        scanfile = arg
+        inputfound = 1
+
+printcolour(scanfile, 'cy')
+
+if inputfound != 1:
+    exit(2)
 
 if web == 0:
     vnc()
