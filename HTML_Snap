@@ -13,9 +13,9 @@ from subprocess import PIPE
 # =================================================================================================================
 
 #scanfile = os.sep + os.path.join('home', 'pi', 'Pen', 'Scripts', 'Masscan', 'Results', 'Scan_ISP_VNC.txt')
-debug = 0
+debug = 1
 port = '5900'
-web = 0
+#web = False
 
 # =================================================================================================================
 # Add some colour to the output
@@ -43,12 +43,37 @@ def printcolour(stringput, colour):
         print("\033[1;38m%s\033[1;m" %stringput)
 
 
+# ========================================================================================================================
+def directorycreator(path):
+
+    dirlist = []
+    d = 0
+    pathstring = str(path) + os.sep
+
+    while not(os.path.exists(path) and not(d >= 30)):
+
+        pathstring = pathstring[:pathstring.rfind(os.sep)]
+
+        if pathstring.find(os.sep) < 0:
+            pathstring += os.sep
+
+        if os.path.exists(pathstring):
+            os.mkdir(dirlist.pop())
+
+        else:
+            dirlist.append(pathstring)
+            d += 1
+    return os.path.exists(path)
+
+
+
+# =======================================================================================================================
 def GetIP(row):
 
     first = row.find(port) + port.__len__() + 1
     second = row.find(' ', row.find(port) + port.__len__() + 1)
     length = second - first
-    # printcolour(first.__str__() + ' ' + second.__str__(), 'b')
+    #printcolour(first.__str__() + ' ' + second.__str__(), 'w')
     return row[first:first + length]
 
 
@@ -58,8 +83,10 @@ def vnc():
     out = ''
     err = ''
 
-    if debug == 1:
-        printcolour(scanfile, 'cy')
+    outputdir = "/home/pi/Pen" + scanfile[scanfile.rfind(os.sep): scanfile.rfind('.txt')]
+    directorycreator(outputdir)
+
+    printcolour('Sending captures to: ' + outputdir, 'cr') 
 
     file = open(scanfile, 'r')
 
@@ -74,7 +101,7 @@ def vnc():
         # Take a snappy
         # --------------------------------------------------------------------------------------------------------------
 
-        snapexecpath = 'timeout 3 vncsnapshot ' + ip + ' /home/pi/Pen/VNCScreens/' + ip + '.png'
+        snapexecpath = 'timeout 3 vncsnapshot ' + ip + ' ' + outputdir + os.sep +  ip + '.jpeg'
 
         if debug == 1:
             printcolour(snapexecpath, 'cy')
@@ -98,47 +125,49 @@ def vnc():
 
         takesnap.wait()
 
-        #revisit = 0
         if revisit == 1:
             printcolour('Taking closer look....', 'y')
-            snapexecpath = 'timeout 120 vncsnapshot -debug ' + ip + ' /home/pi/Pen/VNCScreens/' + ip + '.png'
+            snapexecpath = 'timeout 120 vncsnapshot -debug ' + ip + ' /home/pi/Pen/VNCScreens/' + ip + '.jpeg'
             try:
                 takesnap = subprocess.Popen([snapexecpath], shell=True, stderr=PIPE, stdout=PIPE, bufsize=1)
             except:
                 printcolour('Error Occurred', 'r')
 
         takesnap.wait()
+        
+        execline = 'echo "' + ip + '" >> ' + outputdir + '/Progress.txt'
+        bookmark = subprocess.Popen([execline], shell=True, stdout=PIPE, stderr=PIPE)
 
         ip = GetIP(file.readline())
-
+        
     printcolour("No IP Found in the line, turning off..", 'r')
 
     file.close()
 
+
 # ======================================================================================================================
 def webber():
 
-
+    printcolour('Scanning web, Port: ' + port, 'cy')
     file = open(scanfile, 'r')
 
     ip = GetIP(file.readline())
     ip = GetIP(file.readline())
 
-    while ip.find(port) != -1:
+    while ip != '':
 
         printcolour(ip, 'cy')
 
-        snapexecpath = ('xvfb-run --auto-servernum --server-num=1 --server-args="-screen 0, 1280x1200x24" cutycapt --url="http://"' + ip + ' ')
-        snapexecthing = ('--javascript=on --out=/home/pi/Pen/VNCScreens/' + ip + '.png --delay=3000')
+        snapexecpath = ('timeout 2 xvfb-run --auto-servernum --server-num=1 --server-args="-screen 0, 1280x1200x24" cutycapt --url="http://' + ip + ':' + port + '" ')
+        snapexecthing = ('--javascript=on --out=/home/pi/Pen/8080Screens/' + ip + '.png --delay=1000')
 
         if debug == 1:
             printcolour(snapexecpath + snapexecthing, 'cy')
 
-        takesnap = subprocess.check_output([snapexecpath + snapexecthing], shell=True)
+        takesnap = subprocess.Popen([snapexecpath + snapexecthing], shell=True, stderr=PIPE, stdout=PIPE, bufsize=1)
+        takesnap.wait()
 
-        time.sleep(1)
         ip = GetIP(file.readline())
-
 
     printcolour("No IP Found in the line, turning off..", 'r')
 
@@ -150,23 +179,27 @@ def webber():
 
 for arg in sys.argv:
 
-    if arg == 'web':
-        web = 1
+    if arg.find('-web') != -1:
+        web = True
     else:
-        web = 0
+        web = False
     if arg.find('/') != -1:
         scanfile = arg
         inputfound = 1
+    if arg.find('-p') != -1:
+        port = arg[2:]
 
-printcolour(scanfile, 'cy')
+    if debug:
+        printcolour(arg, 'r')
+
+printcolour('Scan File : ' + scanfile, 'cy')
 
 if inputfound != 1:
     exit(2)
 
-if web == 0:
-    vnc()
-
-if web == 1:
+if web:
     webber()
+else:
+    vnc()
 
 exit()
